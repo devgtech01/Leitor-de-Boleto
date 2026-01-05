@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+openai==1.43.0
+httpx==0.27.0
+python-dotenv
+pdfplumber
+pytesseract
+pillow
+pydantic
