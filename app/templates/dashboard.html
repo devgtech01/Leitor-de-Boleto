@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Leitor de Boletos IA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="/dashboard">Dashboard</a>
+        <div class="d-flex align-items-center">
+            <span class="navbar-text text-white me-3">
+                {{ user.nome or user.email }} • Saldo: <strong>{{ user.creditos }} créditos</strong>
+            </span>
+            <a href="/" class="btn btn-sm btn-outline-light me-2">Boletos - Leitor Inteligente</a>
+            <a href="/planos" class="btn btn-sm btn-outline-light me-2">Planos</a>
+            {% if user.is_admin %}
+            <a href="/admin" class="btn btn-sm btn-outline-light me-2">Admin</a>
+            {% endif %}
+            <a href="/logout" class="btn btn-sm btn-outline-light">Sair</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">Meu Histórico</h2>
+                    <div class="text-muted">Acompanhe seus boletos processados</div>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="/dashboard/export/excel" class="btn btn-outline-secondary">Exportar Excel</a>
+                    <a href="/" class="btn btn-outline-primary">Ir para o Leitor Inteligente</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Arquivo</th>
+                                    <th>Banco</th>
+                                    <th>Valor</th>
+                                    <th>Vencimento</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in historico %}
+                                <tr>
+                                    <td>{{ item.data_processamento.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>{{ item.filename }}</td>
+                                    <td>{{ item.banco or 'Não identificado' }}</td>
+                                    <td>R$ {{ "%.2f"|format(item.valor) if item.valor else '0.00' }}</td>
+                                    <td>{{ item.vencimento }}</td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-primary" data-id="{{ item.id }}" onclick="verDetalhes(this.getAttribute('data-id'))">Detalhes</button>
+                                            <form method="post" action="/excluir/{{ item.id }}" onsubmit="return confirm('Tem certeza que deseja excluir este boleto?');">
+                                                <button class="btn btn-sm btn-outline-danger" type="submit">Excluir</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">Nenhum boleto processado ainda.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDetalhes" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Dados Extraídos pela IA</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="jsonViewer" class="bg-dark text-success p-3 rounded" style="max-height: 400px; overflow-y: auto;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Removido o 'def' que era vício de linguagem Python!
+    async function verDetalhes(id) {
+        try {
+            const response = await fetch(`/detalhes/${id}`);
+            if (!response.ok) throw new Error("Erro na requisição");
+            
+            const dados = await response.json();
+            
+            // Exibe o JSON formatado dentro do modal
+            document.getElementById('jsonViewer').textContent = JSON.stringify(dados, null, 4);
+            
+            // Abre o modal usando a biblioteca do Bootstrap
+            var myModal = new bootstrap.Modal(document.getElementById('modalDetalhes'));
+            myModal.show();
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao buscar detalhes do boleto.");
+        }
+    }
+</script>
+
+</body>
+</html>

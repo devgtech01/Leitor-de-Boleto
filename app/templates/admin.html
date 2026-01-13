@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Leitor de Boletos IA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="/admin">Admin</a>
+        <div class="d-flex align-items-center">
+            <span class="navbar-text text-white me-3">
+                {{ user.email }}
+            </span>
+            <a href="/logout" class="btn btn-sm btn-outline-light">Sair</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Usuários</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nome</th>
+                                    <th>Email</th>
+                                    <th>Plano</th>
+                                    <th>Pendente</th>
+                                    <th>Créditos</th>
+                                    <th>Renova</th>
+                                    <th>Admin</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for u in usuarios %}
+                                <tr>
+                                    <td>{{ u.id }}</td>
+                                    <td>{{ u.nome or '-' }}</td>
+                                    <td>{{ u.email }}</td>
+                                    <td>{{ u.plano or '-' }}</td>
+                                    <td>
+                                        {% if u.plano_pendente %}
+                                        <span class="badge text-bg-warning">{{ u.plano_pendente }}</span>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ u.creditos }}</td>
+                                    <td>
+                                        {% if u.creditos_renovam_em %}
+                                        {{ u.creditos_renovam_em.strftime('%d/%m/%Y') }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ 'Sim' if u.is_admin else 'Não' }}</td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <form method="post" action="/admin/users/{{ u.id }}/plan">
+                                                <div class="input-group input-group-sm">
+                                                    <select class="form-select form-select-sm" name="plano" {% if u.is_admin %}disabled{% endif %}>
+                                                        {% for p in planos %}
+                                                        <option value="{{ p }}" {% if u.plano == p %}selected{% endif %}>{{ p }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <button class="btn btn-outline-primary btn-sm" type="submit" {% if u.is_admin %}disabled{% endif %}>Aplicar</button>
+                                                </div>
+                                            </form>
+                                            {% if u.plano_pendente and (not u.is_admin) %}
+                                            <form method="post" action="/admin/users/{{ u.id }}/plan/approve-pending">
+                                                <button class="btn btn-outline-warning btn-sm" type="submit">Aprovar</button>
+                                            </form>
+                                            {% endif %}
+                                            <form method="post" action="/admin/users/{{ u.id }}/credits">
+                                                <div class="input-group input-group-sm">
+                                                    <input class="form-control form-control-sm" type="number" name="creditos" min="1" placeholder="+créditos" {% if u.is_admin %}disabled{% endif %}>
+                                                    <button class="btn btn-outline-secondary btn-sm" type="submit" {% if u.is_admin %}disabled{% endif %}>Add</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted small mb-0">Dica: para promover alguém a admin, rode o script `make_admin.py`.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Últimos boletos (100)</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Usuário</th>
+                                    <th>Arquivo</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th>Tempo</th>
+                                    <th>Páginas</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in historico %}
+                                <tr>
+                                    {% set t = item.telemetria or {} %}
+                                    <td>{{ item.data_processamento.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>{{ item.user_id }}</td>
+                                    <td>{{ item.filename }}</td>
+                                    <td>R$ {{ "%.2f"|format(item.valor) if item.valor else '0.00' }}</td>
+                                    <td>
+                                        {% if item.sucesso %}
+                                        <span class="badge text-bg-success">OK</span>
+                                        {% else %}
+                                        <span class="badge text-bg-danger" title="{{ item.erro or '' }}">Erro</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div title="render: {{ t.render_ms or '-' }}ms | encode: {{ t.encode_ms or '-' }}ms | openai: {{ t.openai_ms or '-' }}ms | parse: {{ t.parse_ms or '-' }}ms | validate: {{ t.validate_ms or '-' }}ms">
+                                            {{ (item.processamento_ms ~ 'ms') if item.processamento_ms is not none else '-' }}
+                                        </div>
+                                        {% if t.openai_ms is not none %}
+                                        <div class="text-muted small">
+                                            openai {{ t.openai_ms }}ms • render {{ t.render_ms }}ms • encode {{ t.encode_ms }}ms • parse {{ t.parse_ms }}ms • validação {{ t.validate_ms }}ms
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.paginas_processadas is not none %}
+                                        {{ item.paginas_processadas }}/{{ item.paginas_total or '?' }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" data-id="{{ item.id }}" onclick="verDetalhes(this.getAttribute('data-id'))">Detalhes</button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">Nenhum boleto processado ainda.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDetalhes" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Dados Extraídos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="jsonViewer" class="bg-dark text-success p-3 rounded" style="max-height: 400px; overflow-y: auto;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    async function verDetalhes(id) {
+        try {
+            const response = await fetch(`/admin/detalhes/${id}`);
+            if (!response.ok) throw new Error("Erro na requisição");
+            const dados = await response.json();
+            document.getElementById('jsonViewer').textContent = JSON.stringify(dados, null, 4);
+            var myModal = new bootstrap.Modal(document.getElementById('modalDetalhes'));
+            myModal.show();
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao buscar detalhes do boleto.");
+        }
+    }
+</script>
+
+</body>
+</html>

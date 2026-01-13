@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planos - Leitor de Boletos IA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="/">Leitor de Boletos IA</a>
+        <div class="d-flex align-items-center">
+            <span class="navbar-text text-white me-3">
+                {{ user.nome or user.email }}
+            </span>
+            <a href="/dashboard" class="btn btn-sm btn-outline-light me-2">Dashboard</a>
+            <a href="/logout" class="btn btn-sm btn-outline-light">Sair</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">Planos</h2>
+            <div class="text-muted">Escolha um plano (a solicitação fica pendente até aprovação).</div>
+        </div>
+        <a class="btn btn-outline-primary" href="/">Voltar ao Leitor</a>
+    </div>
+
+    {% if user.is_admin %}
+    <div class="alert alert-info">
+        Você é admin, não precisa escolher plano.
+    </div>
+    {% else %}
+    <div class="row g-3">
+        {% for p in planos %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title text-capitalize">{{ p.codigo }}</h5>
+                    <div class="text-muted mb-3">{{ p.creditos_mensais }} créditos/mês</div>
+
+                    <div class="mt-auto">
+                        {% if user.plano == p.codigo %}
+                        <button class="btn btn-success w-100" disabled>Plano atual</button>
+                        {% elif user.plano_pendente == p.codigo %}
+                        <button class="btn btn-outline-secondary w-100" disabled>Solicitação pendente</button>
+                        {% else %}
+                        <form method="post" action="/planos/escolher">
+                            <input type="hidden" name="plano" value="{{ p.codigo }}">
+                            <button class="btn btn-primary w-100" type="submit">Solicitar</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if user.plano_pendente %}
+    <div class="alert alert-warning mt-4">
+        Solicitação pendente: <strong>{{ user.plano_pendente }}</strong>. Um admin precisa aprovar no painel.
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+</body>
+</html>
+

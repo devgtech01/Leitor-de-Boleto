@@ -13,3 +13,9 @@ pdfplumber
 pdf2image
 pandas
 openpyxl
+sqlalchemy
+python-jose
+passlib[bcrypt]
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart

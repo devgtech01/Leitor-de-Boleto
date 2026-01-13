@@ -7,11 +7,58 @@
 </head>
 <body class="bg-light">
 
-<div class="container mt-5">
-  <h2 class="mb-4">Leitor Inteligente de Boletos</h2>
-  <h6 class="mb-4,5"> Insira seu boleto abaixo</h6>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+  <div class="container">
+    <a class="navbar-brand" href="/">Leitor de Boletos IA</a>
+    <div class="d-flex align-items-center">
+      {% if user %}
+      <span class="navbar-text text-white me-3">
+        Saldo: <strong>{{ user.creditos }}créditos</strong>
+      </span>
+      <a href="/dashboard" class="btn btn-sm btn-outline-light me-2">Dashboard</a>
+      <a href="/planos" class="btn btn-sm btn-outline-light me-2">Planos</a>
+      {% if user.is_admin %}
+      <a href="/admin" class="btn btn-sm btn-outline-light me-2">Admin</a>
+      {% endif %}
+      <a href="/logout" class="btn btn-sm btn-outline-light">Sair</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
 
- <form action="/boleto/upload" method="post" enctype="multipart/form-data" class="mb-4">
+<div class="container">
+  <div class="row mb-3 align-items-center">
+    <div class="col">
+      <h2 class="mb-1">Leitor Inteligente de Boletos</h2>
+      <div class="text-muted">Insira seu(s) boleto(s) abaixo</div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(0,0,0,.55); z-index: 1080;">
+    <div class="h-100 d-flex align-items-center justify-content-center">
+      <div class="card shadow-sm" style="max-width: 520px;">
+        <div class="card-body p-4 text-center">
+          <div class="spinner-border text-primary" role="status" aria-label="Carregando"></div>
+          <h5 class="mt-3 mb-1">Processando boletos…</h5>
+          <div class="text-muted">Isso pode levar alguns segundos. Não feche esta página.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if erro %}
+  <div class="alert alert-danger" role="alert">
+    {{ erro }}
+  </div>
+  {% endif %}
+
+  {% if creditos_restantes is defined %}
+  <div class="alert alert-info" role="alert">
+    Créditos restantes: <strong>{{ creditos_restantes }}</strong>
+  </div>
+  {% endif %}
+
+ <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data" class="mb-4">
   <div class="mb-3">
     <label class="form-label">Selecione os boletos (PDF):</label>
     <input class="form-control" type="file" name="files" accept="application/pdf" multiple required>
@@ -26,17 +73,33 @@
     </select>
   </div>
 
-  <button class="btn btn-primary w-100">Processar e Exportar</button>
+  <button id="submitBtn" class="btn btn-primary w-100" type="submit">Processar e Exportar</button>
 </form>
 
 
   {% if resultado %}
-  <h4>✅ Dados Extraídos</h4>
-  <pre class="bg-dark text-light p-3 rounded">
+  <h4>Dados Extraídos</h4>
+  <pre class="bg-dark text-light p-3 rounded mb-0">
 {{ resultado | tojson(indent=2) }}
   </pre>
   {% endif %}
 </div>
+
+<script>
+  (function () {
+    const form = document.getElementById('uploadForm');
+    const overlay = document.getElementById('loadingOverlay');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (!form || !overlay || !submitBtn) return;
+
+    form.addEventListener('submit', function () {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('disabled');
+      overlay.classList.remove('d-none');
+    });
+  })();
+</script>
 
 </body>
 </html>
