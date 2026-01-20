@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Leitor de Notas Fiscais</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+  <div class="container">
+    <a class="navbar-brand" href="/notas">Leitor de Notas Fiscais IA</a>
+    <div class="d-flex align-items-center">
+      {% if user %}
+      <span class="navbar-text text-white me-3">
+        Saldo: <strong>{{ user.creditos }}creditos</strong>
+      </span>
+      <a href="/dashboard" class="btn btn-sm btn-outline-light me-2">Dashboard</a>
+      <a href="/" class="btn btn-sm btn-outline-light me-2">Boletos</a>
+      <a href="/planos" class="btn btn-sm btn-outline-light me-2">Planos</a>
+      {% if user.is_admin %}
+      <a href="/admin" class="btn btn-sm btn-outline-light me-2">Admin</a>
+      {% endif %}
+      <a href="/logout" class="btn btn-sm btn-outline-light">Sair</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="row mb-3 align-items-center">
+    <div class="col">
+      <h2 class="mb-1">Leitor Inteligente de Notas Fiscais</h2>
+      <div class="text-muted">Insira suas notas fiscais (PDF ou XML)</div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(0,0,0,.55); z-index: 1080;">
+    <div class="h-100 d-flex align-items-center justify-content-center">
+      <div class="card shadow-sm" style="max-width: 520px;">
+        <div class="card-body p-4 text-center">
+          <div class="spinner-border text-primary" role="status" aria-label="Carregando"></div>
+          <h5 class="mt-3 mb-1">Processando notas fiscais...</h5>
+          <div class="text-muted">Isso pode levar alguns segundos. Nao feche esta pagina.</div>
+          <div class="progress mt-3" style="height: 8px;">
+            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuemin="0" aria-valuemax="100"></div>
+          </div>
+          <div id="progressText" class="text-muted small mt-2">0%</div>
+          <div id="progressDetail" class="text-muted small">Estimando tempo restante...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if erro %}
+  <div class="alert alert-danger" role="alert">
+    {{ erro }}
+  </div>
+  {% endif %}
+
+  {% if creditos_restantes is defined %}
+  <div class="alert alert-info" role="alert">
+    Creditos restantes: <strong>{{ creditos_restantes }}</strong>
+  </div>
+  {% endif %}
+
+ <form id="uploadForm" action="/notas/upload" method="post" enctype="multipart/form-data" class="mb-4">
+  <div class="mb-3">
+    <label class="form-label">Selecione as notas fiscais (PDF ou XML):</label>
+    <input class="form-control" type="file" name="files" accept="application/pdf,application/xml,text/xml" multiple required>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Formato de saida:</label>
+    <select name="formato" class="form-select">
+      <option value="json">Visualizar na Tela (JSON)</option>
+      <option value="csv">Baixar Planilha CSV</option>
+      <option value="excel">Baixar Planilha Excel (XLSX)</option>
+    </select>
+  </div>
+
+  <button id="submitBtn" class="btn btn-primary w-100" type="submit">Processar e Exportar</button>
+</form>
+
+  {% if resultado %}
+  <h4>Dados Extraidos</h4>
+  <pre class="bg-dark text-light p-3 rounded mb-0">
+{{ resultado | tojson(indent=2) }}
+  </pre>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    const form = document.getElementById('uploadForm');
+    const overlay = document.getElementById('loadingOverlay');
+    const submitBtn = document.getElementById('submitBtn');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const progressDetail = document.getElementById('progressDetail');
+    let progressTimer = null;
+
+    if (!form || !overlay || !submitBtn) return;
+
+    function setProgress(percent, currentFile, totalFiles) {
+      if (!progressBar || !progressText || !progressDetail) return;
+      const safePercent = Math.max(0, Math.min(100, Math.floor(percent)));
+      progressBar.style.width = `${safePercent}%`;
+      progressBar.setAttribute('aria-valuenow', String(safePercent));
+      progressText.textContent = `${safePercent}%`;
+
+      if (totalFiles > 0) {
+        const safeCurrent = Math.max(1, Math.min(totalFiles, currentFile || 1));
+        progressDetail.textContent = `Processando ${safeCurrent} de ${totalFiles} (estimativa)`;
+      } else {
+        progressDetail.textContent = 'Estimando tempo restante...';
+      }
+    }
+
+    function startEstimatedProgress(totalFiles) {
+      const perFileMs = 7000;
+      const totalMs = Math.max(1, totalFiles) * perFileMs;
+      const startedAt = Date.now();
+      const maxPercent = 90;
+
+      setProgress(0, 1, totalFiles);
+
+      progressTimer = window.setInterval(function () {
+        const elapsed = Date.now() - startedAt;
+        const ratio = Math.min(1, elapsed / totalMs);
+        const percent = ratio * maxPercent;
+        const currentFile = Math.ceil(ratio * Math.max(1, totalFiles));
+        setProgress(percent, currentFile, totalFiles);
+      }, 400);
+    }
+
+    function stopEstimatedProgress() {
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+    }
+
+    form.addEventListener('submit', function (event) {
+      const formatSelect = form.querySelector('[name="formato"]');
+      const formato = formatSelect ? formatSelect.value : 'json';
+      const fileInput = form.querySelector('input[type="file"][name="files"]');
+      const totalFiles = fileInput && fileInput.files ? fileInput.files.length : 0;
+
+      submitBtn.disabled = true;
+      submitBtn.classList.add('disabled');
+      overlay.classList.remove('d-none');
+      startEstimatedProgress(totalFiles);
+
+      if (formato === 'json') {
+        return;
+      }
+
+      event.preventDefault();
+
+      const formData = new FormData(form);
+      fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+      })
+        .then(async (response) => {
+          const contentType = response.headers.get('Content-Type') || '';
+
+          if (!response.ok || contentType.includes('text/html')) {
+            const html = await response.text();
+            document.open();
+            document.write(html);
+            document.close();
+            return;
+          }
+
+          const disposition = response.headers.get('Content-Disposition') || '';
+          const match = disposition.match(/filename="?([^"]+)"?/i);
+          const filename = match ? match[1] : 'notas_exportadas';
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          console.error('Erro ao baixar arquivo:', error);
+        })
+        .finally(() => {
+          stopEstimatedProgress();
+          setProgress(100, totalFiles, totalFiles);
+          overlay.classList.add('d-none');
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('disabled');
+        });
+    });
+  })();
+</script>
+
+</body>
+</html>

@@ -36,6 +36,26 @@ async def upload_boleto(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user) # Protegido!
 ):
+    max_files_raw = os.getenv("BOLETO_MAX_FILES_PER_UPLOAD", "200").strip()
+    try:
+        max_files = int(max_files_raw)
+    except Exception:
+        max_files = 200
+
+    if len(files) > max_files:
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "user": user,
+            "erro": f"Limite por envio: {max_files} boletos. Envie em lotes menores."
+        })
+
+    high_volume_threshold_raw = os.getenv("BOLETO_HIGH_VOLUME_THRESHOLD", "20").strip()
+    try:
+        high_volume_threshold = int(high_volume_threshold_raw)
+    except Exception:
+        high_volume_threshold = 20
+    high_volume = len(files) >= high_volume_threshold
+
     # 2. Verificação de Créditos antes de começar (admin não tem limite)
     if (not user.is_admin) and user.creditos < len(files):
         return templates.TemplateResponse("index.html", {
@@ -55,7 +75,7 @@ async def upload_boleto(
         # Processamento via IA + telemetria básica
         start = time.perf_counter()
         try:
-            dados, telemetria = processar_boleto(caminho)
+            dados, telemetria = processar_boleto(caminho, high_volume=high_volume)
             sucesso = True
             erro_msg = None
         except Exception as e:
@@ -90,6 +110,7 @@ async def upload_boleto(
             paginas_processadas=telemetria.get("paginas_processadas"),
             processamento_ms=telemetria.get("processamento_ms"),
             telemetria=telemetria,
+            tipo_documento="boleto",
         )
         db.add(novo_historico)
 
@@ -180,7 +201,8 @@ async def exportar_dashboard_excel(
     for item in historico:
         linhas.append(
             {
-                "data_processamento": item.data_processamento.isoformat() if item.data_processamento else None,
+                "data_processamento": item.data_processamento_br.isoformat() if item.data_processamento_br else None,
+                "tipo_documento": item.tipo_documento,
                 "arquivo": item.filename,
                 "banco": item.banco,
                 "valor": item.valor,
@@ -236,6 +258,23 @@ async def excluir_boleto(
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     db.delete(boleto)
+    db.commit()
+    return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.post("/dashboard/excluir")
+async def excluir_boletos_em_massa(
+    ids: List[int] = Form([]),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not ids:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    query = db.query(BoletoHistory).filter(BoletoHistory.id.in_(ids))
+    if not user.is_admin:
+        query = query.filter(BoletoHistory.user_id == user.id)
+
+    query.delete(synchronize_session=False)
     db.commit()
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 

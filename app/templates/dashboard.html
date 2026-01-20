@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Leitor de Boletos IA</title>
+    <title>Dashboard - Leitor de Documentos IA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
@@ -16,6 +16,7 @@
                 {{ user.nome or user.email }} • Saldo: <strong>{{ user.creditos }} créditos</strong>
             </span>
             <a href="/" class="btn btn-sm btn-outline-light me-2">Boletos - Leitor Inteligente</a>
+            <a href="/notas" class="btn btn-sm btn-outline-light me-2">Notas Fiscais</a>
             <a href="/planos" class="btn btn-sm btn-outline-light me-2">Planos</a>
             {% if user.is_admin %}
             <a href="/admin" class="btn btn-sm btn-outline-light me-2">Admin</a>
@@ -31,11 +32,12 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h2 class="mb-1">Meu Histórico</h2>
-                    <div class="text-muted">Acompanhe seus boletos processados</div>
+                    <div class="text-muted">Acompanhe seus documentos processados</div>
                 </div>
                 <div class="d-flex gap-2">
                     <a href="/dashboard/export/excel" class="btn btn-outline-secondary">Exportar Excel</a>
                     <a href="/" class="btn btn-outline-primary">Ir para o Leitor Inteligente</a>
+                    <a href="/notas" class="btn btn-outline-primary">Ir para Notas Fiscais</a>
                 </div>
             </div>
         </div>
@@ -43,13 +45,22 @@
         <div class="col-12">
             <div class="card shadow-sm">
                 <div class="card-body">
+                    <form method="post" action="/dashboard/excluir" onsubmit="return confirm('Tem certeza que deseja excluir os documentos selecionados?');">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="text-muted small">Selecione documentos para exclusao em massa.</div>
+                            <button id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger" type="submit" disabled>Excluir selecionados</button>
+                        </div>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
+                                    <th style="width: 40px;">
+                                        <input id="selectAll" class="form-check-input" type="checkbox" aria-label="Selecionar todos">
+                                    </th>
                                     <th>Data</th>
+                                    <th>Tipo</th>
                                     <th>Arquivo</th>
-                                    <th>Banco</th>
+                                    <th>Banco/Emitente</th>
                                     <th>Valor</th>
                                     <th>Vencimento</th>
                                     <th>Ações</th>
@@ -58,28 +69,37 @@
                             <tbody>
                                 {% for item in historico %}
                                 <tr>
-                                    <td>{{ item.data_processamento.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>
+                                        <input class="form-check-input row-check" type="checkbox" name="ids" value="{{ item.id }}" aria-label="Selecionar documento {{ item.id }}">
+                                    </td>
+                                    <td>{{ item.data_processamento_br.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>
+                                        {% if item.tipo_documento == "nota_fiscal" %}
+                                        Nota Fiscal
+                                        {% else %}
+                                        Boleto
+                                        {% endif %}
+                                    </td>
                                     <td>{{ item.filename }}</td>
-                                    <td>{{ item.banco or 'Não identificado' }}</td>
+                                    <td>{{ item.banco or 'Nao identificado' }}</td>
                                     <td>R$ {{ "%.2f"|format(item.valor) if item.valor else '0.00' }}</td>
                                     <td>{{ item.vencimento }}</td>
                                     <td>
                                         <div class="d-flex gap-2">
-                                            <button class="btn btn-sm btn-primary" data-id="{{ item.id }}" onclick="verDetalhes(this.getAttribute('data-id'))">Detalhes</button>
-                                            <form method="post" action="/excluir/{{ item.id }}" onsubmit="return confirm('Tem certeza que deseja excluir este boleto?');">
-                                                <button class="btn btn-sm btn-outline-danger" type="submit">Excluir</button>
-                                            </form>
+                                            <button class="btn btn-sm btn-primary" type="button" data-id="{{ item.id }}" onclick="verDetalhes(this.getAttribute('data-id'))">Detalhes</button>
+                                            <button class="btn btn-sm btn-outline-danger" type="submit" formaction="/excluir/{{ item.id }}" formmethod="post" onclick="return confirm('Tem certeza que deseja excluir este documento?');">Excluir</button>
                                         </div>
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">Nenhum boleto processado ainda.</td>
+                                    <td colspan="8" class="text-center text-muted py-4">Nenhum documento processado ainda.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -118,9 +138,44 @@
             myModal.show();
         } catch (error) {
             console.error(error);
-            alert("Erro ao buscar detalhes do boleto.");
+            alert("Erro ao buscar detalhes do documento.");
         }
     }
+
+    (function () {
+        const selectAll = document.getElementById('selectAll');
+        const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+
+        function updateBulkState() {
+            const checks = document.querySelectorAll('.row-check');
+            const checked = document.querySelectorAll('.row-check:checked');
+            if (bulkDeleteBtn) {
+                bulkDeleteBtn.disabled = checked.length === 0;
+            }
+            if (selectAll) {
+                selectAll.indeterminate = checked.length > 0 && checked.length < checks.length;
+                selectAll.checked = checks.length > 0 && checked.length === checks.length;
+            }
+        }
+
+        if (selectAll) {
+            selectAll.addEventListener('change', function () {
+                const checks = document.querySelectorAll('.row-check');
+                checks.forEach((checkbox) => {
+                    checkbox.checked = selectAll.checked;
+                });
+                updateBulkState();
+            });
+        }
+
+        document.addEventListener('change', function (event) {
+            if (event.target && event.target.classList.contains('row-check')) {
+                updateBulkState();
+            }
+        });
+
+        updateBulkState();
+    })();
 </script>
 
 </body>

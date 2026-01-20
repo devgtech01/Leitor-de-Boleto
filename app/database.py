@@ -91,6 +91,9 @@ def ensure_boleto_history_telemetry_columns():
         if "telemetria" not in cols:
             con.execute("ALTER TABLE boleto_history ADD COLUMN telemetria TEXT")
             con.commit()
+        if "tipo_documento" not in cols:
+            con.execute("ALTER TABLE boleto_history ADD COLUMN tipo_documento TEXT NOT NULL DEFAULT 'boleto'")
+            con.commit()
     finally:
         con.close()
 

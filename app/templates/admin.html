@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Leitor de Boletos IA</title>
+    <title>Admin - Leitor de Documentos IA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
@@ -25,7 +25,7 @@
         <div class="col-lg-5">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">Usuários</h5>
+                    <h5 class="card-title mb-3">Ultimos documentos (100)</h5>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover align-middle">
                             <thead class="table-light">
@@ -102,13 +102,14 @@
         <div class="col-lg-7">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">Últimos boletos (100)</h5>
+                    <h5 class="card-title mb-3">Ultimos documentos (100)</h5>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover align-middle">
                             <thead class="table-light">
                                 <tr>
                                     <th>Data</th>
                                     <th>Usuário</th>
+                                    <th>Tipo</th>
                                     <th>Arquivo</th>
                                     <th>Valor</th>
                                     <th>Status</th>
@@ -121,8 +122,15 @@
                                 {% for item in historico %}
                                 <tr>
                                     {% set t = item.telemetria or {} %}
-                                    <td>{{ item.data_processamento.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>{{ item.data_processamento_br.strftime('%d/%m/%Y %H:%M') }}</td>
                                     <td>{{ item.user_id }}</td>
+                                    <td>
+                                        {% if item.tipo_documento == "nota_fiscal" %}
+                                        Nota Fiscal
+                                        {% else %}
+                                        Boleto
+                                        {% endif %}
+                                    </td>
                                     <td>{{ item.filename }}</td>
                                     <td>R$ {{ "%.2f"|format(item.valor) if item.valor else '0.00' }}</td>
                                     <td>
@@ -155,7 +163,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">Nenhum boleto processado ainda.</td>
+                                    <td colspan="9" class="text-center text-muted py-4">Nenhum documento processado ainda.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -193,7 +201,7 @@
             myModal.show();
         } catch (error) {
             console.error(error);
-            alert("Erro ao buscar detalhes do boleto.");
+            alert("Erro ao buscar detalhes do documento.");
         }
     }
 </script>

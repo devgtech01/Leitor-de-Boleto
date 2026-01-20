@@ -1,6 +1,6 @@
 from sqlalchemy import Boolean, Column, Integer, String, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from app.database import Base
 
 class BoletoHistory(Base):
@@ -15,6 +15,7 @@ class BoletoHistory(Base):
     linha_digitavel = Column(String)
     dados_completos = Column(JSON) # Salva o JSON inteiro da OpenAI
     data_processamento = Column(DateTime, default=datetime.utcnow)
+    tipo_documento = Column(String, default="boleto")
 
     # Telemetria básica
     sucesso = Column(Boolean, default=True, nullable=False)
@@ -27,3 +28,12 @@ class BoletoHistory(Base):
 
     # Relacionamento: Um usuário tem muitos históricos
     owner = relationship("User", back_populates="boletos")
+
+    @property
+    def data_processamento_br(self):
+        if not self.data_processamento:
+            return None
+        dt = self.data_processamento
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone(timedelta(hours=-3)))

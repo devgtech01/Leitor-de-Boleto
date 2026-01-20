@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI, Depends
 from app.routes.boleto import router as boleto_router
+from app.routes.nota_fiscal import router as nota_fiscal_router
 from app.routes.admin import router as admin_router
 from app.routes.plans import router as plans_router
 from fastapi import Request
@@ -26,6 +27,7 @@ ensure_boleto_history_telemetry_columns()
 
 app.include_router(auth_router)
 app.include_router(boleto_router)
+app.include_router(nota_fiscal_router)
 app.include_router(admin_router)
 app.include_router(plans_router)
 
